@@ -1,62 +1,497 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智能对话网站</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>晓月 · 江湖对话</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;600&family=Ma+Shan+Zheng&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1a1209;
+    --ink-light: #3d2e14;
+    --paper: #f5ede0;
+    --paper-dark: #ecdcc8;
+    --gold: #b8860b;
+    --gold-light: #d4a843;
+    --red: #8b1a1a;
+    --mist: rgba(245,237,224,0.85);
+    --shadow: rgba(26,18,9,0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Serif SC', serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(ellipse at 20% 10%, rgba(184,134,11,0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 90%, rgba(139,26,26,0.06) 0%, transparent 50%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='60' height='60' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0; bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 780px;
+    border-left: 1px solid rgba(184,134,11,0.12);
+    border-right: 1px solid rgba(184,134,11,0.12);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  header {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 780px;
+    padding: 36px 40px 24px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(184,134,11,0.2);
+  }
+
+  .title-group { display: flex; align-items: baseline; gap: 14px; }
+
+  h1 {
+    font-family: 'Ma Shan Zheng', cursive;
+    font-size: 42px;
+    color: var(--ink);
+    letter-spacing: 6px;
+    line-height: 1;
+    text-shadow: 1px 1px 0 rgba(184,134,11,0.2);
+  }
+
+  .subtitle {
+    font-size: 12px;
+    letter-spacing: 4px;
+    color: var(--gold);
+    font-weight: 300;
+    padding-bottom: 4px;
+  }
+
+  .seal {
+    width: 48px; height: 48px;
+    border: 2px solid var(--red);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Ma Shan Zheng', cursive;
+    font-size: 18px;
+    color: var(--red);
+    letter-spacing: 1px;
+    transform: rotate(-6deg);
+    position: relative;
+    flex-shrink: 0;
+  }
+  .seal::before {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border: 1px solid var(--red);
+    opacity: 0.5;
+  }
+
+  main {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 780px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0 40px;
+  }
+
+  #chat-box {
+    flex: 1;
+    min-height: calc(100vh - 280px);
+    padding: 32px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    overflow-y: auto;
+  }
+
+  .welcome {
+    text-align: center;
+    padding: 40px 20px;
+    animation: fadeUp 0.8s ease both;
+  }
+  .welcome-character {
+    font-family: 'Ma Shan Zheng', cursive;
+    font-size: 56px;
+    color: var(--gold);
+    text-shadow: 0 2px 8px rgba(184,134,11,0.3);
+    display: block;
+    margin-bottom: 12px;
+  }
+  .welcome p {
+    font-size: 14px;
+    color: var(--ink-light);
+    letter-spacing: 3px;
+    line-height: 2;
+    font-weight: 300;
+  }
+  .welcome-divider {
+    width: 60px;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--gold), transparent);
+    margin: 16px auto;
+  }
+
+  .message {
+    display: flex;
+    gap: 14px;
+    animation: fadeUp 0.4s ease both;
+    max-width: 85%;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .message.user {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+  }
+
+  .avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Ma Shan Zheng', cursive;
+    font-size: 16px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .bot .avatar {
+    background: var(--ink);
+    color: var(--gold-light);
+    box-shadow: 0 2px 8px var(--shadow);
+  }
+
+  .user .avatar {
+    background: var(--gold);
+    color: var(--paper);
+    box-shadow: 0 2px 8px rgba(184,134,11,0.3);
+  }
+
+  .bubble {
+    padding: 14px 18px;
+    border-radius: 2px;
+    font-size: 15px;
+    line-height: 1.85;
+    letter-spacing: 0.5px;
+    position: relative;
+  }
+
+  .bot .bubble {
+    background: white;
+    border: 1px solid rgba(184,134,11,0.18);
+    color: var(--ink);
+    box-shadow: 2px 2px 0 rgba(184,134,11,0.08), 0 4px 16px rgba(26,18,9,0.06);
+    border-left: 3px solid var(--gold);
+  }
+
+  .user .bubble {
+    background: var(--ink);
+    color: var(--paper);
+    box-shadow: 2px 2px 0 rgba(26,18,9,0.2), 0 4px 16px rgba(26,18,9,0.1);
+    text-align: right;
+  }
+
+  .dots {
+    display: flex; gap: 5px; align-items: center;
+  }
+  .dots span {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--gold);
+    animation: dot 1.2s ease-in-out infinite;
+  }
+  .dots span:nth-child(2) { animation-delay: 0.2s; }
+  .dots span:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes dot {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+    40% { transform: scale(1); opacity: 1; }
+  }
+
+  footer {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 780px;
+    padding: 20px 40px 32px;
+    border-top: 1px solid rgba(184,134,11,0.2);
+    background: linear-gradient(to bottom, transparent, rgba(245,237,224,0.6));
+  }
+
+  .input-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+  }
+
+  .input-wrap { flex: 1; position: relative; }
+
+  textarea {
+    width: 100%;
+    background: white;
+    border: 1px solid rgba(184,134,11,0.25);
+    border-radius: 2px;
+    padding: 12px 16px;
+    font-family: 'Noto Serif SC', serif;
+    font-size: 15px;
+    color: var(--ink);
+    resize: none;
+    line-height: 1.7;
+    min-height: 48px;
+    max-height: 120px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    letter-spacing: 0.5px;
+  }
+
+  textarea::placeholder { color: rgba(61,46,20,0.35); letter-spacing: 2px; }
+
+  textarea:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(184,134,11,0.08), 2px 2px 0 rgba(184,134,11,0.08);
+  }
+
+  .btn-send {
+    width: 48px; height: 48px;
+    background: var(--ink);
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s, transform 0.1s;
+    flex-shrink: 0;
+    box-shadow: 2px 2px 0 rgba(184,134,11,0.3);
+  }
+
+  .btn-send:hover { background: var(--ink-light); }
+  .btn-send:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 rgba(184,134,11,0.3); }
+  .btn-send:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-send svg { width: 20px; height: 20px; fill: var(--gold-light); }
+
+  .footer-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+  }
+
+  .hint {
+    font-size: 11px;
+    color: rgba(61,46,20,0.4);
+    letter-spacing: 2px;
+  }
+
+  .btn-reset {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: var(--gold);
+    background: none;
+    border: 1px solid rgba(184,134,11,0.3);
+    padding: 4px 12px;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-reset:hover { background: rgba(184,134,11,0.08); border-color: var(--gold); }
+
+  #chat-box::-webkit-scrollbar { width: 4px; }
+  #chat-box::-webkit-scrollbar-track { background: transparent; }
+  #chat-box::-webkit-scrollbar-thumb { background: rgba(184,134,11,0.2); border-radius: 2px; }
+
+  .corner {
+    position: fixed;
+    width: 40px; height: 40px;
+    opacity: 0.25;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .corner.tl { top: 16px; left: 16px; border-top: 2px solid var(--gold); border-left: 2px solid var(--gold); }
+  .corner.tr { top: 16px; right: 16px; border-top: 2px solid var(--gold); border-right: 2px solid var(--gold); }
+  .corner.bl { bottom: 16px; left: 16px; border-bottom: 2px solid var(--gold); border-left: 2px solid var(--gold); }
+  .corner.br { bottom: 16px; right: 16px; border-bottom: 2px solid var(--gold); border-right: 2px solid var(--gold); }
+
+  @media (max-width: 600px) {
+    header, main, footer { padding-left: 20px; padding-right: 20px; }
+    h1 { font-size: 32px; }
+    .welcome-character { font-size: 42px; }
+    .corner { display: none; }
+    body::after { display: none; }
+  }
+</style>
 </head>
 <body>
-    <div class="container">
-        <h1>智能对话</h1>
-        <div id="chat-box"></div>
-        <input type="text" id="user-input" placeholder="输入你的消息...">
-        <button onclick="sendMessage()">发送</button>
+
+<div class="corner tl"></div>
+<div class="corner tr"></div>
+<div class="corner bl"></div>
+<div class="corner br"></div>
+
+<header>
+  <div class="title-group">
+    <h1>晓月</h1>
+    <span class="subtitle">江湖对话录</span>
+  </div>
+  <div class="seal">侠</div>
+</header>
+
+<main>
+  <div id="chat-box">
+    <div class="welcome">
+      <span class="welcome-character">☽</span>
+      <div class="welcome-divider"></div>
+      <p>江湖路远，幸得相逢<br>有何话语，但说无妨</p>
     </div>
+  </div>
+</main>
 
-    <script>
-        async function sendMessage() {
-            const userInput = document.getElementById('user-input');
-            const chatBox = document.getElementById('chat-box');
-            const message = userInput.value;
+<footer>
+  <div class="input-row">
+    <div class="input-wrap">
+      <textarea id="user-input" placeholder="在此留言……" rows="1"></textarea>
+    </div>
+    <button class="btn-send" id="send-btn" title="发送">
+      <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+    </button>
+  </div>
+  <div class="footer-actions">
+    <span class="hint">Enter 发送 · Shift+Enter 换行</span>
+    <button class="btn-reset" id="reset-btn">重开话匣</button>
+  </div>
+</footer>
 
-            if (message.trim() === '') return;
+<script>
+  const chatBox  = document.getElementById('chat-box');
+  const input    = document.getElementById('user-input');
+  const sendBtn  = document.getElementById('send-btn');
+  const resetBtn = document.getElementById('reset-btn');
 
-            // 显示用户消息
-            const userMsgDiv = document.createElement('div');
-            userMsgDiv.className = 'message user-message';
-            userMsgDiv.textContent = `你: ${message}`;
-            chatBox.appendChild(userMsgDiv);
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+  });
 
-            userInput.value = ''; // 清空输入框
-            chatBox.scrollTop = chatBox.scrollHeight; // 滚动到底部
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
 
-            // 发送消息到后端
-            try {
-                const response = await fetch('/chat', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ message: message })
-                });
-                const data = await response.json();
+  sendBtn.addEventListener('click', sendMessage);
+  resetBtn.addEventListener('click', resetChat);
 
-                // 显示机器人回复
-                const botMsgDiv = document.createElement('div');
-                botMsgDiv.className = 'message bot-message';
-                botMsgDiv.textContent = `机器人: ${data.response}`;
-                chatBox.appendChild(botMsgDiv);
-                chatBox.scrollTop = chatBox.scrollHeight; // 滚动到底部
-            } catch (error) {
-                console.error('Error sending message:', error);
-                const errorMsgDiv = document.createElement('div');
-                errorMsgDiv.className = 'message error-message';
-                errorMsgDiv.textContent = '发生错误，请稍后再试。';
-                chatBox.appendChild(errorMsgDiv);
-                chatBox.scrollTop = chatBox.scrollHeight;
-            }
-        }
-    </script>
+  function appendMessage(role, text) {
+    const welcome = chatBox.querySelector('.welcome');
+    if (welcome) welcome.remove();
+
+    const wrap = document.createElement('div');
+    wrap.className = `message ${role}`;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.textContent = role === 'bot' ? '月' : '客';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.textContent = text;
+
+    wrap.appendChild(avatar);
+    wrap.appendChild(bubble);
+    chatBox.appendChild(wrap);
+    chatBox.scrollTop = chatBox.scrollHeight;
+    return wrap;
+  }
+
+  function showTyping() {
+    const wrap = document.createElement('div');
+    wrap.className = 'message bot typing';
+    wrap.id = 'typing-indicator';
+
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.textContent = '月';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.innerHTML = '<div class="dots"><span></span><span></span><span></span></div>';
+
+    wrap.appendChild(avatar);
+    wrap.appendChild(bubble);
+    chatBox.appendChild(wrap);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+
+  function removeTyping() {
+    const t = document.getElementById('typing-indicator');
+    if (t) t.remove();
+  }
+
+  async function sendMessage() {
+    const text = input.value.trim();
+    if (!text || sendBtn.disabled) return;
+
+    appendMessage('user', text);
+    input.value = '';
+    input.style.height = 'auto';
+    sendBtn.disabled = true;
+    showTyping();
+
+    try {
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      });
+      const data = await res.json();
+      removeTyping();
+      appendMessage('bot', data.response || data.error || '……');
+    } catch (err) {
+      removeTyping();
+      appendMessage('bot', '江湖路远，音讯有误，稍后再试。');
+    } finally {
+      sendBtn.disabled = false;
+      input.focus();
+    }
+  }
+
+  async function resetChat() {
+    try { await fetch('/reset', { method: 'POST' }); } catch (_) {}
+    chatBox.innerHTML = `
+      <div class="welcome" style="animation:fadeUp 0.5s ease both">
+        <span class="welcome-character">☽</span>
+        <div class="welcome-divider"></div>
+        <p>话匣已清，重新启程<br>有何话语，但说无妨</p>
+      </div>`;
+  }
+</script>
 </body>
 </html>
