@@ -33,7 +33,7 @@ def get_db_connection():
             database="test",
             ssl_verify_cert=True,
             ssl_verify_identity=True,
-            ssl_ca='D:\\code\\python\\my_bot\\isrgrootx1.pem'
+            ssl_ca='isrgrootx1.pem'
         )
         return conn
     except Exception as e:
