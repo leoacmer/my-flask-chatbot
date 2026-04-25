@@ -1,0 +1,4 @@
+Flask
+gunicorn
+pymysql
+python-dotenv # 本地开发需要，部署时可选

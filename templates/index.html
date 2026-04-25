@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能对话网站</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>智能对话</h1>
+        <div id="chat-box"></div>
+        <input type="text" id="user-input" placeholder="输入你的消息...">
+        <button onclick="sendMessage()">发送</button>
+    </div>
+
+    <script>
+        async function sendMessage() {
+            const userInput = document.getElementById('user-input');
+            const chatBox = document.getElementById('chat-box');
+            const message = userInput.value;
+
+            if (message.trim() === '') return;
+
+            // 显示用户消息
+            const userMsgDiv = document.createElement('div');
+            userMsgDiv.className = 'message user-message';
+            userMsgDiv.textContent = `你: ${message}`;
+            chatBox.appendChild(userMsgDiv);
+
+            userInput.value = ''; // 清空输入框
+            chatBox.scrollTop = chatBox.scrollHeight; // 滚动到底部
+
+            // 发送消息到后端
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ message: message })
+                });
+                const data = await response.json();
+
+                // 显示机器人回复
+                const botMsgDiv = document.createElement('div');
+                botMsgDiv.className = 'message bot-message';
+                botMsgDiv.textContent = `机器人: ${data.response}`;
+                chatBox.appendChild(botMsgDiv);
+                chatBox.scrollTop = chatBox.scrollHeight; // 滚动到底部
+            } catch (error) {
+                console.error('Error sending message:', error);
+                const errorMsgDiv = document.createElement('div');
+                errorMsgDiv.className = 'message error-message';
+                errorMsgDiv.textContent = '发生错误，请稍后再试。';
+                chatBox.appendChild(errorMsgDiv);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+        }
+    </script>
+</body>
+</html>
