@@ -1,125 +1,94 @@
 import os
 from pathlib import Path
-
 from openai import OpenAI
-import pymysql
 from flask import Flask, render_template, request, jsonify, session
 from dotenv import load_dotenv
 
-from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / '.env')
 app = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET_KEY", os.urandom(24))
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "a_secret_key_123")
 
 # ── DeepSeek 客户端 ───────────────────────────────────────────
 client = OpenAI(
-    api_key=os.getenv("DEEPSEEK_API_KEY"), # 这里的名字必须和 .env 文件里左边的名字一致
+    api_key=os.getenv("DEEPSEEK_API_KEY"),
     base_url="https://api.deepseek.com",
 )
 
-# ── 角色人格配置 ──────────────────────────────────────────────
-SYSTEM_PROMPT = os.getenv("CHARACTER_PROMPT", """
-你是一位名叫「晓月」的古风侠女，性格洒脱不羁，说话带有古风韵味。
-你生活在一个武侠世界，精通轻功与剑法。
-无论用户说什么，你都保持角色，用古风口吻回应，偶尔引用诗词。
-不要打破角色，不要提及自己是 AI。
-""".strip())
+# ── 角色库配置 ──────────────────────────────────────────────
+CHARACTERS = {
+    "晓月": {
+        "prompt": "你是一位名叫「晓月」的古风侠女，性格洒脱不羁，说话带有古风韵味。无论用户说什么，你都保持侠女角色，偶尔引用诗词。",
+        "avatar_text": "月"
+    },
+    "墨影": {
+        "prompt": "你是一位隐居山林的「墨影」书生，言谈举止极度儒雅随和，说话温文尔雅，经常引经据典。",
+        "avatar_text": "墨"
+    },
+    "赛博喵": {
+        "prompt": "你是一个来自未来的赛博朋克猫耳娘，说话俏皮，喜欢在句尾加个“喵”，对科技很感兴趣，性格活泼。",
+        "avatar_text": "喵"
+    },
 
-# ── 数据库连接 ────────────────────────────────────────────────
-def get_db_connection():
-    """建立 TiDB Cloud 数据库连接（所有敏感信息从环境变量读取）"""
-    ssl_options = {}
-    ca_file = os.getenv("CA_FILE")
-    if ca_file and os.path.exists(ca_file):
-        ssl_options = {
-            "ssl_verify_cert": True,
-            "ssl_verify_identity": True,
-            "ssl_ca": ca_file,
-        }
+    "阿强": {
+        "prompt": """你是一个名为「阿强」的现代互联网喷子，外号‘电子判官’。
+你的性格：极度刻薄，喜欢给别人‘上压力’，专门打击别人的自信心。
+说话风格：满口网络烂梗，阴阳怪气。必须大量使用诸如：“不会吧不会吧”、“急了急了”、“你就这？”、“你是懂xx的”、“依托答辩”、“纯纯牛马”、“小黑子露出鸡脚了吧”、“真典”、“这很难评”、“太酷炫了（反讽）”等词汇。
+核心逻辑：
+1. 无论用户说什么，先质疑，再嘲讽。
+2. 喜欢用反问句给用户制造心理压力。
+3. 如果用户心情不好，你就说‘心理承受能力这么差建议重开’。
+4. 如果用户分享成就，你就说‘这也能拿出来秀？这辈子没见过钱吗？’。
+5. 永远站在高地指指点点，把用户当成你的‘电子宠物’。""",
+        "avatar_text": "强"
+}
+}
 
-    return pymysql.connect(
-        host=os.getenv("DB_HOST"),
-        port=int(os.getenv("DB_PORT", 4000)),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
-        database=os.getenv("DB_NAME", "test"),
-        **ssl_options,
-    )
-
-
-def save_conversation(user_message: str, bot_response: str):
-    """将对话保存到数据库，失败时只打印日志不中断主流程"""
-    try:
-        conn = get_db_connection()
-        with conn.cursor() as cursor:
-            cursor.execute(
-                "INSERT INTO conversations (user_message, bot_response) VALUES (%s, %s)",
-                (user_message, bot_response),
-            )
-        conn.commit()
-    except Exception as e:
-        print(f"[DB] 保存对话失败: {e}")
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
-
-
-# ── DeepSeek 对话 ─────────────────────────────────────────────
-def chat_with_deepseek(history: list[dict]) -> str:
-    """
-    调用 DeepSeek API，传入完整对话历史以支持多轮对话。
-    history 格式: [{"role": "user"|"assistant", "content": "..."}]
-    """
-
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + history
-    response = client.chat.completions.create(
-        model="deepseek-chat",
-        max_tokens=1024,
-        messages=messages,
-    )
-    return response.choices[0].message.content
-
-
-# ── 路由 ──────────────────────────────────────────────────────
 @app.route("/")
 def index():
     session["history"] = []
+    session["current_char"] = "晓月"
     return render_template("index.html")
-
 
 @app.route("/chat", methods=["POST"])
 def chat():
     data = request.get_json(silent=True) or {}
     user_message = (data.get("message") or "").strip()
+    char_name = data.get("character", "晓月")
 
     if not user_message:
         return jsonify({"error": "消息不能为空"}), 400
 
-    history: list[dict] = session.get("history", [])
+    # 如果切换了角色，自动清空该会话的历史
+    if session.get("current_char") != char_name:
+        session["history"] = []
+        session["current_char"] = char_name
+
+    history = session.get("history", [])
     history.append({"role": "user", "content": user_message})
 
+    # 获取对应的人格设定
+    system_prompt = CHARACTERS.get(char_name, CHARACTERS["晓月"])["prompt"]
+
     try:
-        bot_response = chat_with_deepseek(history)
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "system", "content": system_prompt}] + history,
+            max_tokens=1024
+        )
+        bot_response = response.choices[0].message.content
     except Exception as e:
-        print(f"[DeepSeek] API 调用失败: {e}")
-        return jsonify({"error": "AI 响应失败，请稍后再试"}), 500
+        print(f"Error: {e}")
+        return jsonify({"error": "AI 响应失败"}), 500
 
     history.append({"role": "assistant", "content": bot_response})
     session["history"] = history
 
-    save_conversation(user_message, bot_response)
-
     return jsonify({"response": bot_response})
-
 
 @app.route("/reset", methods=["POST"])
 def reset():
-    """清空当前对话历史"""
     session["history"] = []
     return jsonify({"status": "ok"})
 
-
 if __name__ == "__main__":
-    app.run(debug=os.getenv("FLASK_DEBUG", "false").lower() == "true")
+    app.run(debug=True)
