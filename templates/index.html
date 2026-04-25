@@ -71,6 +71,7 @@
 
   .title-group { display: flex; align-items: baseline; gap: 14px; }
 
+
   h1 {
     font-family: 'Ma Shan Zheng', cursive;
     font-size: 42px;
@@ -349,18 +350,30 @@
 </style>
 </head>
 <body>
-
-<div class="corner tl"></div>
-<div class="corner tr"></div>
-<div class="corner bl"></div>
-<div class="corner br"></div>
-
-<header>
+ <header>
   <div class="title-group">
-    <h1>晓月</h1>
-    <span class="subtitle">江湖对话录</span>
+    <div style="display: flex; flex-direction: column;">
+        <h1 id="char-title">晓月</h1>
+        <!-- 角色选择下拉框 -->
+        <select id="char-selector" style="
+            background: transparent;
+            border: none;
+            color: var(--gold);
+            font-family: 'Noto Serif SC', serif;
+            font-size: 12px;
+            letter-spacing: 2px;
+            cursor: pointer;
+            outline: none;
+            margin-top: 5px;
+        ">
+            <option value="晓月">古风侠女 · 晓月</option>
+            <option value="墨影">儒雅书生 · 墨影</option>
+            <option value="赛博喵">赛博喵娘 · 喵喵</option>
+           <option value="阿强">电子判官 · 阿强</option>
+        </select>
+    </div>
   </div>
-  <div class="seal">侠</div>
+  <div class="seal" id="char-seal">侠</div>
 </header>
 
 <main>
@@ -387,17 +400,27 @@
     <button class="btn-reset" id="reset-btn">重开话匣</button>
   </div>
 </footer>
+<!-- 保持你之前的 HTML 和 CSS 不变 -->
+<!-- ... (前面的代码) ... -->
 
 <script>
-  const chatBox  = document.getElementById('chat-box');
-  const input    = document.getElementById('user-input');
-  const sendBtn  = document.getElementById('send-btn');
-  const resetBtn = document.getElementById('reset-btn');
+  const chatBox      = document.getElementById('chat-box');
+  const input        = document.getElementById('user-input');
+  const sendBtn      = document.getElementById('send-btn');
+  const resetBtn     = document.getElementById('reset-btn');
+  const charSelector = document.getElementById('char-selector');
+  const charTitle    = document.getElementById('char-title');
+  const charSeal     = document.getElementById('char-seal');
 
-  input.addEventListener('input', () => {
-    input.style.height = 'auto';
-    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
-  });
+  const charMeta = {
+    "晓月": { avatar: "月", seal: "侠" },
+    "墨影": { avatar: "墨", seal: "儒" },
+    "赛博喵": { avatar: "喵", seal: "喵" },
+      "阿强": { avatar: "强", seal: "典" }
+  };
+
+  // --- 补全：绑定按钮和键盘事件 ---
+  sendBtn.addEventListener('click', sendMessage);
 
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -406,7 +429,29 @@
     }
   });
 
-  sendBtn.addEventListener('click', sendMessage);
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+  });
+
+  // 监听角色切换
+  charSelector.addEventListener('change', () => {
+    const val = charSelector.value;
+    charTitle.innerText = val;
+    charSeal.innerText = charMeta[val].seal;
+    resetChat();
+  });
+
+  // --- 补全：定义 resetChat 函数 ---
+  async function resetChat() {
+    try { await fetch('/reset', { method: 'POST' }); } catch (_) {}
+    chatBox.innerHTML = `
+      <div class="welcome">
+        <span class="welcome-character">☽</span>
+        <div class="welcome-divider"></div>
+        <p>话匣已清，重新启程<br>有何话语，但说无妨</p>
+      </div>`;
+  }
   resetBtn.addEventListener('click', resetChat);
 
   function appendMessage(role, text) {
@@ -418,7 +463,8 @@
 
     const avatar = document.createElement('div');
     avatar.className = 'avatar';
-    avatar.textContent = role === 'bot' ? '月' : '客';
+    const currentChar = charSelector.value;
+    avatar.textContent = role === 'bot' ? charMeta[currentChar].avatar : '客';
 
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
@@ -428,35 +474,12 @@
     wrap.appendChild(bubble);
     chatBox.appendChild(wrap);
     chatBox.scrollTop = chatBox.scrollHeight;
-    return wrap;
-  }
-
-  function showTyping() {
-    const wrap = document.createElement('div');
-    wrap.className = 'message bot typing';
-    wrap.id = 'typing-indicator';
-
-    const avatar = document.createElement('div');
-    avatar.className = 'avatar';
-    avatar.textContent = '月';
-
-    const bubble = document.createElement('div');
-    bubble.className = 'bubble';
-    bubble.innerHTML = '<div class="dots"><span></span><span></span><span></span></div>';
-
-    wrap.appendChild(avatar);
-    wrap.appendChild(bubble);
-    chatBox.appendChild(wrap);
-    chatBox.scrollTop = chatBox.scrollHeight;
-  }
-
-  function removeTyping() {
-    const t = document.getElementById('typing-indicator');
-    if (t) t.remove();
   }
 
   async function sendMessage() {
     const text = input.value.trim();
+    const character = charSelector.value;
+
     if (!text || sendBtn.disabled) return;
 
     appendMessage('user', text);
@@ -469,28 +492,43 @@
       const res = await fetch('/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({
+            message: text,
+            character: character
+        }),
       });
       const data = await res.json();
       removeTyping();
       appendMessage('bot', data.response || data.error || '……');
     } catch (err) {
       removeTyping();
-      appendMessage('bot', '江湖路远，音讯有误，稍后再试。');
+      appendMessage('bot', '江湖路远，音讯有误。');
     } finally {
       sendBtn.disabled = false;
       input.focus();
     }
   }
 
-  async function resetChat() {
-    try { await fetch('/reset', { method: 'POST' }); } catch (_) {}
-    chatBox.innerHTML = `
-      <div class="welcome" style="animation:fadeUp 0.5s ease both">
-        <span class="welcome-character">☽</span>
-        <div class="welcome-divider"></div>
-        <p>话匣已清，重新启程<br>有何话语，但说无妨</p>
-      </div>`;
+  function showTyping() {
+    const wrap = document.createElement('div');
+    wrap.className = 'message bot typing';
+    wrap.id = 'typing-indicator';
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.textContent = charMeta[charSelector.value].avatar;
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.innerHTML = '<div class="dots"><span></span><span></span><span></span></div>';
+    wrap.appendChild(avatar);
+    wrap.appendChild(bubble);
+    chatBox.appendChild(wrap);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+
+  // --- 补全：定义 removeTyping 函数 ---
+  function removeTyping() {
+    const t = document.getElementById('typing-indicator');
+    if (t) t.remove();
   }
 </script>
 </body>
